@@ -17,6 +17,7 @@ public class BookkeepingApp extends Application {
     private TableView<Record> tableView = new TableView<>();
     private Label totalIncomeLabel = new Label("总收入: 0.0");
     private Label totalExpenseLabel = new Label("总支出: 0.0");
+    private Record currentEditingRecord = null; // 用于标记当前是否在编辑模式
 
     @Override
     public void start(Stage primaryStage) {
@@ -66,6 +67,11 @@ public class BookkeepingApp extends Application {
             categorySearchField.clear(); // <--- New: 清空分类输入框
             refreshTable();
         });
+
+        Button exportButton = new Button("导出 Excel/CSV");
+        exportButton.setMaxWidth(Double.MAX_VALUE);
+        exportButton.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;"); // 绿色按钮
+        exportButton.setOnAction(e -> exportToCSV());
 
         HBox filterBox = new HBox(10,
                 new Label("日期:"), startDate, new Label("-"), endDate,
@@ -119,19 +125,36 @@ public class BookkeepingApp extends Application {
             try {
                 String type = typeCombo.getValue();
                 double amount = Double.parseDouble(amountField.getText());
+
+                // ✅ 修正点：从 categoryCombo 获取值
                 String category = categoryCombo.getValue();
+                if (category == null || category.trim().isEmpty()) category = "未分类";
+
                 LocalDate date = datePicker.getValue();
                 String note = noteField.getText();
 
                 Record newRecord = new Record(type, amount, category, date, note);
-                service.addRecord(newRecord);
 
-                refreshTable(); // 刷新数据
-                updateStats();  // 刷新统计
+                if (currentEditingRecord == null) {
+                    // --- 正常添加模式 ---
+                    service.addRecord(newRecord);
+                } else {
+                    // --- 编辑更新模式 ---
+                    service.updateRecord(currentEditingRecord, newRecord);
+                    currentEditingRecord = null; // 退出编辑模式
+                    addButton.setText("添加记录"); // 按钮文字还原
+                    addButton.setStyle("");      // 样式还原
+                }
+
+                refreshTable();
+                updateStats();
 
                 // 清空输入框
                 amountField.clear();
+                // 修正点：清空 ComboBox
+                categoryCombo.setValue(null);
                 noteField.clear();
+
             } catch (NumberFormatException ex) {
                 Alert alert = new Alert(Alert.AlertType.ERROR, "请输入有效的金额！");
                 alert.show();
@@ -197,6 +220,36 @@ public class BookkeepingApp extends Application {
         });
         contextMenu.getItems().add(deleteItem);
         tableView.setContextMenu(contextMenu);
+
+        MenuItem editItem = new MenuItem("编辑此记录");
+        editItem.setOnAction(e -> {
+            Record selected = tableView.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                // 1. 进入编辑模式
+                currentEditingRecord = selected;
+
+                // 2. 将数据回填到左侧输入框
+                if ("收入".equals(selected.getType())) {
+                    typeCombo.setValue("收入");
+                } else {
+                    typeCombo.setValue("支出");
+                }
+                amountField.setText(String.valueOf(selected.getAmount()));
+
+                // ✅ 修正点：使用 categoryCombo.setValue
+                categoryCombo.setValue(selected.getCategory());
+
+                datePicker.setValue(selected.getDate());
+                noteField.setText(selected.getNote());
+
+                // 3. 改变按钮文字
+                addButton.setText("保存修改");
+                addButton.setStyle("-fx-background-color: #FFA500; -fx-text-fill: white;");
+            }
+        });
+
+        // 把 editItem 也加进菜单
+        contextMenu.getItems().add(0, editItem); // 加在第一位
 
         // --- 4. 组装界面 ---
         BorderPane root = new BorderPane();
@@ -283,6 +336,34 @@ public class BookkeepingApp extends Application {
         Scene scene = new Scene(new BorderPane(textArea), 400, 500);
         stage.setScene(scene);
         stage.show();
+    }
+
+    // 新增：导出为 CSV 文件
+    private void exportToCSV() {
+        javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
+        fileChooser.setTitle("导出账单");
+        fileChooser.getExtensionFilters().add(new javafx.stage.FileChooser.ExtensionFilter("CSV 文件", "*.csv"));
+        fileChooser.setInitialFileName("我的账本_" + LocalDate.now() + ".csv");
+
+        java.io.File file = fileChooser.showSaveDialog(null);
+
+        if (file != null) {
+            try (java.io.PrintWriter writer = new java.io.PrintWriter(new java.io.OutputStreamWriter(new java.io.FileOutputStream(file), "GBK"))) {
+                // 注意：为了让 Excel 直接打开不乱码，中文 Windows通常使用 GBK 编码
+                // 写表头
+                writer.println("日期,类型,分类,金额,备注");
+
+                // 写数据
+                for (Record r : service.getAllRecords()) {
+                    writer.println(String.format("%s,%s,%s,%.2f,%s",
+                            r.getDate(), r.getType(), r.getCategory(), r.getAmount(), r.getNote()));
+                }
+
+                new Alert(Alert.AlertType.INFORMATION, "导出成功！路径：" + file.getAbsolutePath()).show();
+            } catch (Exception ex) {
+                new Alert(Alert.AlertType.ERROR, "导出失败：" + ex.getMessage()).show();
+            }
+        }
     }
 
     public static void main(String[] args) {

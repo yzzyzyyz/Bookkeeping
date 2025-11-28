@@ -66,6 +66,15 @@ public class AccountService {
         return stats;
     }
 
+    // 新增：更新记录 (Req003)
+    public void updateRecord(Record oldRecord, Record newRecord) {
+        int index = records.indexOf(oldRecord);
+        if (index != -1) {
+            records.set(index, newRecord); // 替换旧记录
+            saveRecords(); // 保存文件
+        }
+    }
+
     // 本地存储实现 (DataStorage )
     private void saveRecords() {
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(DATA_FILE))) {
