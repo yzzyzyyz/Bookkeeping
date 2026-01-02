@@ -56,6 +56,13 @@
             <version>1.18.30</version>
             <scope>provided</scope>
         </dependency>
+
+        <dependency>
+            <groupId>com.code-intelligence</groupId>
+            <artifactId>jazzer</artifactId>
+            <version>0.22.1</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -63,6 +70,28 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.joe.accounting.Launcher</mainClass>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-pmd-plugin</artifactId>
+                <version>3.21.0</version>
+                <configuration>
+                    <printFailingErrors>true</printFailingErrors>
+                    <linkXRef>false</linkXRef>
+                    <rulesets>
+                        <ruleset>/rulesets/java/quickstart.xml</ruleset>
+                    </rulesets>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
